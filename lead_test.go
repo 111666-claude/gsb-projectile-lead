@@ -5,34 +5,28 @@ import (
 	"testing"
 )
 
-func TestStaticTargetTime(t *testing.T) {
-	engine := &Engine{}
-	elapsed, dir, ok := engine.Lead(Vec{X: 100}, Vec{}, 100)
-	if !ok {
-		t.Fatal("静止目标应该能解出命中时间")
-	}
-	if math.Abs(elapsed-1000) > 1e-6 {
-		t.Fatalf("静止目标 100 米、弹速 100 米每秒应该是 1000ms：%v", elapsed)
-	}
-	if math.Abs(dir.X-1) > 1e-9 || math.Abs(dir.Y) > 1e-9 {
-		t.Fatalf("方向应该朝 +X：%+v", dir)
+func TestHitHasPositiveTime(t *testing.T) {
+	elapsed, _, ok := (&Engine{}).Lead(Target{P: Vec{X: 100}}, 100)
+	if !ok || elapsed <= 0 {
+		t.Fatalf("正前方的固定目标应该给出正的开火时刻：%v %v", elapsed, ok)
 	}
 }
 
-func TestTimeIsPositive(t *testing.T) {
-	if elapsed, _, _ := (&Engine{}).Lead(Vec{X: 10}, Vec{}, 10); elapsed <= 0 {
-		t.Fatalf("命中时间应该为正：%v", elapsed)
+func TestDirectionIsNormalized(t *testing.T) {
+	_, dir, _ := (&Engine{}).Lead(Target{P: Vec{X: 100}}, 100)
+	if math.Abs(math.Hypot(dir.X, dir.Y)-1) > 1e-9 {
+		t.Fatalf("开火方向应该是单位向量：%+v", dir)
 	}
 }
 
 func TestStepsStartAtZero(t *testing.T) {
 	if (&Engine{}).Steps() != 0 {
-		t.Fatal("初始步数应该是 0")
+		t.Fatal("初始求值次数应该是 0")
 	}
 }
 
 func TestConstants(t *testing.T) {
-	if StepMs != 10 || MaxSimMs != 10000 {
+	if SimStepMs != 10 || MaxFlightMs != 5000 || HitRadius != 0.5 || MaxIter != 64 {
 		t.Fatal("弹道常量被改了")
 	}
 }

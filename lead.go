@@ -1,19 +1,30 @@
-// Package projectile 是弹道预判：按目标速度解算相遇时刻，再给出射击方向。
-// 缺陷：逐帧模拟代替解算、只看目标当前位置（不预判）、无解时也返回命中、
-// 迭代步数随距离增长、方向用当前夹角。
+// Package projectile 是弹道预判：目标带加速度运动，要在给定弹速与命中半径下找出最早的可行开火时刻。
+// 缺陷：用固定 10ms 步长模拟（精度只有 10ms）、判据漏掉命中半径、忽略目标的加速度与速度、
+// 无解时也返回命中、步数随飞行时间线性增长。
 package projectile
 
 import "math"
 
-// StepMs 是模拟用的步长（毫秒）。
-const StepMs = 10.0
+// SimStepMs 是模拟步长（毫秒）。
+const SimStepMs = 10.0
 
-// MaxSimMs 是模拟的最长时间（毫秒）。
-const MaxSimMs = 10000.0
+// MaxFlightMs 是允许的最长飞行时间（毫秒）。
+const MaxFlightMs = 5000.0
 
-// Vec 是二维坐标与速度。
+// HitRadius 是命中半径（米）。
+const HitRadius = 0.5
+
+// MaxIter 是一次解算允许的可行域求值次数上限。
+const MaxIter = 64
+
+// Vec 是二维坐标。
 type Vec struct {
 	X, Y float64
+}
+
+// Target 是目标状态：位置、速度与加速度。
+type Target struct {
+	P, V, A Vec
 }
 
 // Engine 是弹道解算器。
@@ -21,27 +32,27 @@ type Engine struct {
 	steps int
 }
 
-// Steps 是累计模拟步数（规模观测）。
+// Steps 是累计的可行域求值次数（规模观测）。
 func (e *Engine) Steps() int { return e.steps }
 
-// Lead 返回命中所需时间与射击方向。
-// 缺陷：用 10ms 步长逐帧模拟（步数随距离线性增长），而且只判断目标当前位置是否已经进入
-// 弹道射程，完全不考虑目标自己的速度；模拟到上限也照样返回命中。
-func (e *Engine) Lead(target, targetVel Vec, bulletSpeed float64) (float64, Vec, bool) {
-	distance := math.Hypot(target.X, target.Y)
-	for elapsed := 0.0; elapsed <= MaxSimMs; elapsed += StepMs {
+// Lead 返回最早的可行命中时刻（毫秒）与开火方向。
+// 缺陷：只拿目标当前位置到射击点的距离和子弹行程比大小，既没有命中半径，也没有目标的
+// 速度与加速度，模拟到上限还照样返回命中，精度受 10ms 步长限制。
+func (e *Engine) Lead(target Target, bulletSpeed float64) (float64, Vec, bool) {
+	distance := math.Hypot(target.P.X, target.P.Y)
+	for elapsed := 0.0; elapsed <= MaxFlightMs; elapsed += SimStepMs {
 		e.steps++
 		if distance <= bulletSpeed*elapsed/1000.0 {
-			return elapsed, direction(target), true
+			return elapsed, direction(target.P), true
 		}
 	}
-	return MaxSimMs, direction(target), true
+	return MaxFlightMs, direction(target.P), true
 }
 
-func direction(target Vec) Vec {
-	length := math.Hypot(target.X, target.Y)
+func direction(vector Vec) Vec {
+	length := math.Hypot(vector.X, vector.Y)
 	if length == 0 {
 		return Vec{}
 	}
-	return Vec{X: target.X / length, Y: target.Y / length}
+	return Vec{X: vector.X / length, Y: vector.Y / length}
 }

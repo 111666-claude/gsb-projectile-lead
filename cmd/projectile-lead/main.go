@@ -14,28 +14,41 @@ import (
 func Run(args []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("projectile-lead", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	sample := flags.String("sample", "lead", "lead / noway / scale")
+	sample := flags.String("sample", "radius", "radius / accel / noway / steps")
 	if err := flags.Parse(args); err != nil {
 		return 2
 	}
 	switch *sample {
-	case "lead":
+	case "radius":
+		// 正前方 100 米的固定靶，弹速 100 米每秒，命中半径 0.5 米。
 		engine := &projectile.Engine{}
-		elapsed, dir, ok := engine.Lead(projectile.Vec{X: 100}, projectile.Vec{Y: 10}, 100)
-		fmt.Fprintf(stdout, "hit=%v t=%.1f dirx=%.2f steps=%d\n", ok, elapsed, dir.X, engine.Steps())
+		elapsed, _, ok := engine.Lead(projectile.Target{P: projectile.Vec{X: 100}}, 100)
+		fmt.Fprintf(stdout, "hit=%v t=%.1f steps=%d\n", ok, elapsed, engine.Steps())
+	case "accel":
+		// 目标以 200 米每秒平方的加速度冲向射手。
+		engine := &projectile.Engine{}
+		elapsed, _, ok := engine.Lead(projectile.Target{
+			P: projectile.Vec{X: 100},
+			A: projectile.Vec{X: -200},
+		}, 100)
+		fmt.Fprintf(stdout, "hit=%v t=%.1f\n", ok, elapsed)
 	case "noway":
-		// 目标用同样的速度朝背离方向跑，理论上永远追不上。
+		// 同速逃逸并且还在向外加速。
 		engine := &projectile.Engine{}
-		_, _, ok := engine.Lead(projectile.Vec{X: 100}, projectile.Vec{X: 100}, 100)
-		fmt.Fprintf(stdout, "hit=%v steps=%d\n", ok, engine.Steps())
-	case "scale":
+		elapsed, _, ok := engine.Lead(projectile.Target{
+			P: projectile.Vec{X: 100},
+			V: projectile.Vec{X: 100},
+			A: projectile.Vec{X: 1000},
+		}, 100)
+		fmt.Fprintf(stdout, "hit=%v t=%.1f\n", ok, elapsed)
+	case "steps":
 		engine := &projectile.Engine{}
-		for index := 0; index < 100000; index++ {
-			engine.Lead(projectile.Vec{X: 100}, projectile.Vec{}, 100)
+		for index := 0; index < 1000; index++ {
+			engine.Lead(projectile.Target{P: projectile.Vec{X: 100}}, 100)
 		}
 		fmt.Fprintf(stdout, "steps=%d\n", engine.Steps())
 	default:
-		fmt.Fprintln(stderr, "需要 --sample lead|noway|scale")
+		fmt.Fprintln(stderr, "需要 --sample radius|accel|noway|steps")
 		return 2
 	}
 	return 0
